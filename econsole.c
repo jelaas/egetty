@@ -28,6 +28,7 @@
 
 #include <termios.h> /* for tcgetattr */
 #include <sys/ioctl.h> /* for winsize */
+#include <signal.h>
 
 #include <time.h>
 
@@ -43,18 +44,20 @@ struct {
 	int devsocket;
 	int scan;
 	int ucast;
+	int row, col;
+	int s;
+	int ifindex;
 	
 	struct sockaddr_ll dest;
 	
 	struct termios term;
 } conf;
 
-int console_put(int s, int ifindex, struct sk_buff *skb)
+int console_send(int s, int ifindex, struct sk_buff *skb)
 {
 	struct sockaddr_ll dest;
 	socklen_t destlen = sizeof(dest);
 	int rc;
-	uint8_t *p;
 
 	memset(&dest, 0, sizeof(dest));
 
@@ -67,13 +70,8 @@ int console_put(int s, int ifindex, struct sk_buff *skb)
 	else
 		memset(dest.sll_addr, 255, 6);
 	
-	p = skb_push(skb, 2);
-	*p++ = EGETTY_IN;
-	*p = conf.console;
-	
 	rc = sendto(s, skb->data, skb->len, 0, (const struct sockaddr *)&dest, destlen);
 	if(rc == -1) {
-		printf("sendto failed: %s\n", strerror(errno));
 		return -1;
 	}
 	if(conf.debug) {
@@ -84,6 +82,72 @@ int console_put(int s, int ifindex, struct sk_buff *skb)
 		printf("\n");
 	}
 	return 0;
+}
+
+int console_put(int s, int ifindex, struct sk_buff *skb)
+{
+	int rc;
+	uint8_t *p;
+
+	p = skb_push(skb, 2);
+	*p++ = EGETTY_IN;
+	*p = conf.console;
+	
+	rc = console_send(s, ifindex, skb);
+	if(rc == -1) {
+		printf("sendto failed: %s\n", strerror(errno));
+		return -1;
+	}
+	return 0;
+}
+
+int console_winch(int s, int ifindex, int row, int col)
+{
+	int rc;
+	uint8_t *p;
+	struct sk_buff *skb = alloc_skb(64);
+
+	p = skb_put(skb, 0);
+	*p++ = EGETTY_WINCH;
+	*p++ = conf.console;
+	*p++ = row;
+	*p++ = col;
+	p = skb_put(skb, 4);
+	
+	rc = console_send(s, ifindex, skb);
+	if(rc == -1) {
+		printf("sendto failed: %s\n", strerror(errno));
+		free_skb(skb);
+		return -1;
+	}
+	free_skb(skb);
+	return 0;
+}
+
+static void winch_handler(int sig)
+{
+	struct winsize winp;
+
+	if(!ioctl( 0, TIOCGWINSZ, &winp))
+	{
+		conf.row = winp.ws_row;
+		conf.col = winp.ws_col;
+		console_winch(conf.s, conf.ifindex, conf.row, conf.col);
+	}
+}
+
+static int signals_init()
+{
+	static struct sigaction act;
+	int rc = 0;
+
+	memset(&act, 0, sizeof(act));
+	sigemptyset(&act.sa_mask);
+	act.sa_handler = winch_handler;
+	act.sa_flags = 0;
+	rc |= sigaction(SIGWINCH, &act, NULL);
+
+	return rc;
 }
 
 int terminal_settings()
@@ -171,15 +235,14 @@ int console_scan(int s, int ifindex, struct sk_buff *skb)
 
 int main(int argc, char **argv)
 {
-	int s;
 	struct sockaddr_ll from;
 	socklen_t fromlen = sizeof(from);
 	char *device = "eth0", *ps;
-	int ifindex=-1;
 	uint8_t *buf, *p;
 	int n, i, err=0;
 	struct sk_buff *skb;
 
+	conf.ifindex=-1;
 	conf.debug = 0;
 
 	if(jelopt(argv, 'h', "help", NULL, &err)) {
@@ -233,44 +296,48 @@ int main(int argc, char **argv)
 	
 	if(device)
 	{
-		ifindex = if_nametoindex(device);
-		if(!ifindex)
+		conf.ifindex = if_nametoindex(device);
+		if(!conf.ifindex)
 		{
 			fprintf(stderr, "no such device %s\n", device);
 			exit(1);
 		}
 	}
 
-	s = socket(PF_PACKET, SOCK_DGRAM, htons(ETH_P_EGETTY));
-	if(s == -1)
+	conf.s = socket(PF_PACKET, SOCK_DGRAM, htons(ETH_P_EGETTY));
+	if(conf.s == -1)
 	{
 		fprintf(stderr, "socket(): %s\n", strerror(errno));
 		exit(1);
 	}
 
 
-	if(ifindex >= 0)
+	if(conf.ifindex >= 0)
 	{
 		struct sockaddr_ll addr;
 		memset(&addr, 0, sizeof(addr));
 		
 		addr.sll_family = AF_PACKET;
 		addr.sll_protocol = htons(ETH_P_EGETTY);
-		addr.sll_ifindex = ifindex;
+		addr.sll_ifindex = conf.ifindex;
 		
-		if(bind(s, (const struct sockaddr *)&addr, sizeof(addr)))
+		if(bind(conf.s, (const struct sockaddr *)&addr, sizeof(addr)))
 		{
 			fprintf(stderr, "bind failed: %s\n", strerror(errno));
 			exit(1);
 		}
 	}
 
-	if(!conf.scan) terminal_settings();
+	if(!conf.scan) {
+		terminal_settings();
+		signals_init();
+		winch_handler(0);
+	}
 
 	skb = alloc_skb(1500);
 
 	if(conf.scan)
-		console_scan(s, ifindex, skb);
+		console_scan(conf.s, conf.ifindex, skb);
 
 	while(1)
 	{
@@ -280,7 +347,7 @@ int main(int argc, char **argv)
 		fds[0].events = POLLIN;
 		fds[0].revents = 0;
 		
-		fds[1].fd = s;
+		fds[1].fd = conf.s;
 		fds[1].events = POLLIN;
 		fds[1].revents = 0;
 
@@ -309,12 +376,12 @@ int main(int argc, char **argv)
 				exit(0);
 			}
 			skb_put(skb, n);
-			if(!conf.scan) console_put(s, ifindex, skb);
+			if(!conf.scan) console_put(conf.s, conf.ifindex, skb);
 		}
 		if(fds[1].revents) {
 			skb_reset(skb);
 			buf = skb_put(skb, 0);
-			n = recvfrom(s, buf, skb_tailroom(skb), 0, (struct sockaddr *)&from, &fromlen);
+			n = recvfrom(conf.s, buf, skb_tailroom(skb), 0, (struct sockaddr *)&from, &fromlen);
 			if(n == -1) {
 				fprintf(stderr, "recvfrom() failed. ifconfig up?\n");
 				continue;

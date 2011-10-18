@@ -334,6 +334,27 @@ int main(int argc, char **argv, char **arge)
 					continue;
 				}
 				
+				if(*p == EGETTY_WINCH) {
+					p++;
+					if(*p != conf.console) {
+						if(conf.debug)
+							printf("Wrong console %d not %d\n", *p, conf.console);
+						continue;
+					}
+					p++;
+					{
+						struct winsize winp;
+						winp.ws_row = *p++;
+						winp.ws_col = *p++;
+						winp.ws_xpixel = 0;
+						winp.ws_ypixel = 0;
+						ioctl(loginfd, TIOCSWINSZ, &winp);
+						if(conf.debug)
+							printf("WINCH to %d, %d\n", winp.ws_row, winp.ws_col);
+					}
+					continue;
+				}
+				
 				if(*p != EGETTY_IN) {
 					if(conf.debug)
 						printf("Not EGETTY_IN: %d\n", *p);
