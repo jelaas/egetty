@@ -42,6 +42,7 @@ static char **envp;
 struct {
 	int console;
 	char *device;
+	int kmsg;
 	int debug;
 	struct sockaddr_ll client;
 	int devsocket;
@@ -91,7 +92,7 @@ static int set_flag(char *ifname, short flag)
 pid_t login(int *fd)
 {
 	pid_t pid;
-	int amaster;
+	int amaster, tty;
 	char name[256];
 
 	pid = forkpty(&amaster, name,
@@ -99,14 +100,26 @@ pid_t login(int *fd)
 	if(pid == 0) {
 		/* child */
 		char *argv[]={"/bin/login", "--", 0, 0};
-//		char *argv[]={"/bin/bash", "-li", 0, 0};
-
 		(void) execve( argv[0], argv, envp );
 		printf("execve failed\n");
 		exit(1);
 	}
 	if(pid == -1) return -1;
 	*fd = amaster;
+
+	if(conf.kmsg) {
+		if (ioctl(amaster, TIOCCONS, 0)) {
+			if (errno == EBUSY) {
+				tty = open("/dev/tty0", O_WRONLY);
+				if (tty >= 0) {
+					if (ioctl(tty, TIOCCONS, 0)==0)
+						ioctl(amaster, TIOCCONS, 0);
+					close(tty);
+				}
+			}
+		}
+	}
+	
 	return pid;
 }
 
@@ -199,6 +212,10 @@ int main(int argc, char **argv, char **arge)
 		if(strcmp(argv[argc], "debug")==0) {
 			printf("Debug mode\n");
 			conf.debug = 1;
+			continue;
+		}
+		if(strcmp(argv[argc], "console")==0) {
+			conf.kmsg = 1;
 			continue;
 		}
 		if( (strlen(argv[argc]) < 3) && isdigit(*argv[argc])) {
