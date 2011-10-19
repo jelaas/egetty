@@ -392,11 +392,13 @@ int main(int argc, char **argv)
 				if(conf.debug) printf("Received EGETTY\n");
 				p = skb->data;
 				if(*p == EGETTY_HELLO) {
-					p++;
-					printf("Console: %d ", *p);
-					for(i=0;i<6;i++)
-						printf("%02x%s", from.sll_addr[i], i==5?"":":");
-					printf("\n");
+					if(conf.scan) {
+						p++;
+						printf("Console: %d ", *p);
+						for(i=0;i<6;i++)
+							printf("%02x%s", from.sll_addr[i], i==5?"":":");
+						printf("\n");
+					}
 					continue;
 				}
 				if(*p != EGETTY_OUT) continue;
