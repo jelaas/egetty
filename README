@@ -1,0 +1,12 @@
+
+Example entries for traditional sysvinit style inittab:
+e1:2345:respawn:/sbin/egetty 0 wlan0
+e2:2345:respawn:/sbin/egetty 0 eth0 console
+
+Use: "$ econsole eth0"
+
+Scanning for egettys:
+$ econsole eth0 scan
+
+Then you can connect to a specific egetty with:
+$ econsole eth0 00:0c:6b:24:d2:c8 0
