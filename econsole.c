@@ -124,6 +124,27 @@ int console_winch(int s, int ifindex, int row, int col)
 	return 0;
 }
 
+int console_hup(int s, int ifindex)
+{
+	int rc;
+	uint8_t *p;
+	struct sk_buff *skb = alloc_skb(64);
+
+	p = skb_put(skb, 0);
+	*p++ = EGETTY_HUP;
+	*p++ = conf.console;
+	p = skb_put(skb, 2);
+	
+	rc = console_send(s, ifindex, skb);
+	if(rc == -1) {
+		printf("sendto failed: %s\n", strerror(errno));
+		free_skb(skb);
+		return -1;
+	}
+	free_skb(skb);
+	return 0;
+}
+
 static void winch_handler(int sig)
 {
 	struct winsize winp;
@@ -373,6 +394,7 @@ int main(int argc, char **argv)
 			}
 			buf[n] = 0;
 			if(n==1 && buf[0] == 0x1d) {
+				console_hup(conf.s, conf.ifindex);
 				tcsetattr(0, TCSANOW, &conf.term);
 				exit(0);
 			}
@@ -402,11 +424,12 @@ int main(int argc, char **argv)
 					}
 					continue;
 				}
-				if(*p != EGETTY_OUT) continue;
-				p++;
-				if(*p++ != conf.console) continue;
-				skb_pull(skb, 2);
-				write(1, skb->data, skb->len);
+				if(*p == EGETTY_OUT || *p == EGETTY_KMSG) {
+					p++;
+					if(*p++ != conf.console) continue;
+					skb_pull(skb, 2);
+					write(1, skb->data, skb->len);
+				}
 				continue;
 			}
 		}
