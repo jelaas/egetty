@@ -89,16 +89,52 @@ static int set_flag(char *ifname, short flag)
 	return 0;
 }
 
+int putfd(int fd, char *s)
+{
+	if(s)
+		write(fd, s, strlen(s));
+	return 0;
+}
+
 pid_t login(int *fd)
 {
 	pid_t pid;
-	int amaster, tty;
+	int amaster, tty, rc=0;
 	char name[256];
 
 	pid = forkpty(&amaster, name,
 		      NULL, NULL);
 	if(pid == 0) {
 		/* child */
+		if(conf.kmsg) {
+			if ((rc=ioctl(0, TIOCCONS, 0))) {
+				if(conf.debug) {
+					putfd(1, "TIOCCONS: ");
+					putfd(1, strerror(errno));
+				}
+				if (errno == EBUSY) {
+					tty = open("/dev/tty0", O_WRONLY);
+					if (tty >= 0) {
+						if ((rc=ioctl(tty, TIOCCONS, 0))==0) {
+							rc=ioctl(0, TIOCCONS, 0);
+							if(conf.debug && rc) {
+								putfd(1, "TIOCCONS: ");
+								putfd(1, strerror(errno));
+							}
+						}
+						close(tty);
+					} else
+						rc = -1;
+				}
+			}
+			if(conf.debug) {
+				if(rc)
+					putfd(1, "failed to redirect console\n");
+				else
+					putfd(1, "redirected console\n");
+			}
+		}
+
 		char *argv[]={"/bin/login", "--", 0, 0};
 		(void) execve( argv[0], argv, envp );
 		printf("execve failed\n");
@@ -107,19 +143,6 @@ pid_t login(int *fd)
 	if(pid == -1) return -1;
 	*fd = amaster;
 
-	if(conf.kmsg) {
-		if (ioctl(amaster, TIOCCONS, 0)) {
-			if (errno == EBUSY) {
-				tty = open("/dev/tty0", O_WRONLY);
-				if (tty >= 0) {
-					if (ioctl(tty, TIOCCONS, 0)==0)
-						ioctl(amaster, TIOCCONS, 0);
-					close(tty);
-				}
-			}
-		}
-	}
-	
 	return pid;
 }
 
