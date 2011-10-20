@@ -332,6 +332,7 @@ int main(int argc, char **argv)
 		terminal_settings();
 		signals_init();
 		winch_handler(0);
+		fprintf(stderr, "Use CTRL-] to close connection.\n");
 	}
 
 	skb = alloc_skb(1500);
