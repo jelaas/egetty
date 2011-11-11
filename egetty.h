@@ -9,6 +9,8 @@ enum { EGETTY_SCAN=0, EGETTY_KMSG, EGETTY_HUP, EGETTY_HELLO, EGETTY_IN, EGETTY_O
  Format of packet:
  uint8_t type;
  uint8_t console_no;
+ uint8_t len_high;
+ uint8_t len_low;
 
  uint8_t data[];
 
