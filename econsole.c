@@ -183,6 +183,17 @@ int terminal_settings()
 	term.c_lflag &= ~ICANON;
 	term.c_lflag &= ~ECHO;
 	term.c_lflag &= ~ISIG;
+
+        term.c_iflag |= IGNPAR;
+        term.c_iflag &= ~(ISTRIP | INLCR | IGNCR | ICRNL | IXON | IXANY | IXOFF);
+#ifdef IUCLC
+        term.c_iflag &= ~IUCLC;
+#endif
+        term.c_lflag &= ~(ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHONL);
+#ifdef IEXTEN
+        term.c_lflag &= ~IEXTEN;
+#endif
+        term.c_oflag &= ~OPOST;
 	
 	return tcsetattr(0, TCSANOW, &term);
 }
@@ -284,7 +295,7 @@ int main(int argc, char **argv)
 		}
 		if(strcmp(argv[argc], "debug")==0) {
 			printf("Debug mode\n");
-			conf.debug = 1;
+			conf.debug++;
 			continue;
 		}
 		if( (strlen(argv[argc]) < 3) && isdigit(*argv[argc])) {
@@ -393,6 +404,8 @@ int main(int argc, char **argv)
 				exit(0);
 			}
 			buf[n] = 0;
+			if(conf.debug) printf("read %d bytes from stdin\n", n);
+			if(conf.debug > 1) printf("buf[0] == %d\n", buf[0]);
 			if(n==1 && buf[0] == 0x1d) {
 				console_hup(conf.s, conf.ifindex);
 				tcsetattr(0, TCSANOW, &conf.term);
