@@ -53,4 +53,7 @@ unsigned char *skb_push(struct sk_buff *skb, unsigned int len);
 /* remove data from head */
 unsigned char *skb_pull(struct sk_buff *skb, unsigned int len);
 
+/* set absolute length. Can be used tio remove data from tail */
+void skb_trim(struct sk_buff *skb, unsigned int len);
+
 #endif

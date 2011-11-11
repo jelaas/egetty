@@ -153,4 +153,9 @@ unsigned char *skb_pull(struct sk_buff *skb, unsigned int len)
 	return skb->data += len;
 }
 
-
+/* set absolute length. Can be used tio remove data from tail */
+void skb_trim(struct sk_buff *skb, unsigned int len)
+{
+	skb->len = len;
+	skb->tail = skb->data + len;
+}
