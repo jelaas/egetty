@@ -53,7 +53,7 @@ struct {
 	struct termios term;
 } conf;
 
-int console_send(int s, int ifindex, struct sk_buff *skb)
+static int console_send(int s, int ifindex, struct sk_buff *skb)
 {
 	struct sockaddr_ll dest;
 	socklen_t destlen = sizeof(dest);
@@ -84,14 +84,16 @@ int console_send(int s, int ifindex, struct sk_buff *skb)
 	return 0;
 }
 
-int console_put(int s, int ifindex, struct sk_buff *skb)
+static int console_put(int s, int ifindex, struct sk_buff *skb)
 {
 	int rc;
 	uint8_t *p;
 
-	p = skb_push(skb, 2);
+	p = skb_push(skb, 4);
 	*p++ = EGETTY_IN;
-	*p = conf.console;
+	*p++ = conf.console;
+	*p++ = skb->len >> 8;
+	*p = skb->len & 0xff;
 	
 	rc = console_send(s, ifindex, skb);
 	if(rc == -1) {
@@ -101,7 +103,7 @@ int console_put(int s, int ifindex, struct sk_buff *skb)
 	return 0;
 }
 
-int console_winch(int s, int ifindex, int row, int col)
+static int console_winch(int s, int ifindex, int row, int col)
 {
 	int rc;
 	uint8_t *p;
@@ -124,7 +126,7 @@ int console_winch(int s, int ifindex, int row, int col)
 	return 0;
 }
 
-int console_hup(int s, int ifindex)
+static int console_hup(int s, int ifindex)
 {
 	int rc;
 	uint8_t *p;
@@ -171,7 +173,7 @@ static int signals_init()
 	return rc;
 }
 
-int terminal_settings()
+static int terminal_settings()
 {
 	struct termios term;
 	
@@ -231,7 +233,7 @@ static int set_flag(char *ifname, short flag)
 	return 0;
 }
 
-int console_bcast(int s, int ifindex, struct sk_buff *skb)
+static int console_bcast(int s, int ifindex, struct sk_buff *skb)
 {
 	struct sockaddr_ll dest;
 	socklen_t destlen = sizeof(dest);
@@ -247,14 +249,16 @@ int console_bcast(int s, int ifindex, struct sk_buff *skb)
 	return sendto(s, skb->data, skb->len, 0, (const struct sockaddr *)&dest, destlen);
 }
 
-int console_scan(int s, int ifindex, struct sk_buff *skb)
+static int console_scan(int s, int ifindex, struct sk_buff *skb)
 {
 	int rc;
 	uint8_t *p;
 
-	p = skb_push(skb, 2);
+	p = skb_push(skb, 4);
 	*p++ = EGETTY_SCAN;
-	*p = conf.console;
+	*p++ = conf.console;
+	*p++ = skb->len >> 8;
+	*p = skb->len & 0xff;
 	
 	rc = console_bcast(s, ifindex, skb);
 	if(rc == -1) {
@@ -272,6 +276,7 @@ int main(int argc, char **argv)
 	char *device = "eth0", *ps;
 	uint8_t *buf, *p;
 	int n, i, err=0;
+	unsigned int len;
 	struct sk_buff *skb;
 
 	conf.ifindex=-1;
@@ -440,7 +445,10 @@ int main(int argc, char **argv)
 				if(*p == EGETTY_OUT || *p == EGETTY_KMSG) {
 					p++;
 					if(*p++ != conf.console) continue;
-					skb_pull(skb, 2);
+					len = *p++ << 8;
+					len += *p;
+					skb_trim(skb, len);
+					skb_pull(skb, 4);
 					write(1, skb->data, skb->len);
 				}
 				continue;

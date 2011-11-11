@@ -183,9 +183,11 @@ int console_put(int s, int ifindex, struct sk_buff *skb)
 	int rc;
 	uint8_t *p;
 
-	p = skb_push(skb, 2);
+	p = skb_push(skb, 4);
 	*p++ = EGETTY_OUT;
-	*p = conf.console;
+	*p++ = conf.console;
+	*p++ = skb->len >> 8;
+	*p = skb->len & 0xff;
 
 	rc = console_ucast(s, ifindex, skb);
 	if(rc == -1) {
@@ -200,9 +202,11 @@ int console_hello(int s, int ifindex, struct sk_buff *skb)
 	int rc;
 	uint8_t *p;
 
-	p = skb_push(skb, 2);
+	p = skb_push(skb, 4);
 	*p++ = EGETTY_HELLO;
-	*p = conf.console;
+	*p++ = conf.console;
+	*p++ = skb->len >> 8;
+	*p = skb->len & 0xff;
 
 	rc = console_bcast(s, ifindex, skb);
 	if(rc == -1) {
@@ -220,6 +224,7 @@ int main(int argc, char **argv, char **arge)
 	int ifindex=-1;
 	uint8_t *buf, *p;
 	ssize_t n;
+	unsigned int len;
 	int count=1;
 	int timeout = -1;
 	int loginfd = -1;
@@ -407,7 +412,15 @@ int main(int argc, char **argv, char **arge)
 					continue;
 				}
 				memcpy(conf.client.sll_addr, from.sll_addr, 6);
-				skb_pull(skb, 2);
+				p++;
+				len = *p++ << 8;
+				len += *p;
+				if(len > n) {
+					printf("Length field too long: %d\n", len);
+					continue;
+				}
+				skb_trim(skb, len);
+				skb_pull(skb, 4);
 				if(conf.debug) printf("Sent %d bytes to child\n", skb->len);
 				write(loginfd, skb->data, skb->len);
 				continue;
