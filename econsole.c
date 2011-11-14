@@ -397,7 +397,7 @@ int main(int argc, char **argv)
 
 		if(fds[0].revents & POLLIN) {
 			skb_reset(skb);
-			skb_reserve(skb, 2);
+			skb_reserve(skb, 4);
 			buf = skb_put(skb, 0);
 			n = read(0, buf, skb_tailroom(skb));
 			if(n == -1) {

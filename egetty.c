@@ -336,7 +336,7 @@ int main(int argc, char **argv, char **arge)
 		if(fds[1].revents & POLLIN) {
 			if(conf.debug) printf("POLLIN child\n");
 			skb_reset(skb);
-			skb_reserve(skb, 2);
+			skb_reserve(skb, 4);
 			buf = skb_put(skb, 0);
 			n = read(loginfd, buf, skb_tailroom(skb));
 			if(n == -1) {
@@ -374,7 +374,7 @@ int main(int argc, char **argv, char **arge)
 				
 				if(*p == EGETTY_SCAN) {
 					skb_reset(skb);
-					skb_reserve(skb, 2);
+					skb_reserve(skb, 4);
 					console_hello(s, ifindex, skb);
 					continue;
 				}
