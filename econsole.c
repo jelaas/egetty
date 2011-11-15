@@ -449,7 +449,7 @@ int main(int argc, char **argv)
 					len += *p;
 					skb_trim(skb, len);
 					skb_pull(skb, 4);
-					write(1, skb->data, skb->len);
+					if(!conf.scan) write(1, skb->data, skb->len);
 				}
 				continue;
 			}
