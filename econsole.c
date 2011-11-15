@@ -428,6 +428,10 @@ int main(int argc, char **argv)
 				continue;
 			}
 			skb_put(skb, n);
+
+			if(conf.ucast)
+				if(memcmp(conf.dest.sll_addr, from.sll_addr, 6))
+					continue;
 			
 			if(ntohs(from.sll_protocol) == ETH_P_EGETTY) {
 				if(conf.debug) printf("Received EGETTY\n");
