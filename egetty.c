@@ -298,6 +298,10 @@ int main(int argc, char **argv, char **arge)
 	
 	skb = alloc_skb(1500);
 
+	skb_reset(skb);
+	skb_reserve(skb, 4);
+	console_hello(s, ifindex, skb);
+	
 	while(count)
 	{
 		struct pollfd fds[2];
@@ -318,7 +322,7 @@ int main(int argc, char **argv, char **arge)
 				printf("loginfd = %d\n", loginfd);
 			}
 		}
-
+		
 		fds[0].fd = s;
 		fds[0].events = POLLIN;
 		fds[0].revents = 0;
