@@ -3,6 +3,11 @@ Example entries for traditional sysvinit style inittab:
 e1:2345:respawn:/sbin/egetty 0 wlan0
 e2:2345:respawn:/sbin/egetty 0 eth0 console
 
+egetty [0-9] <dev> [console|waitif|debug]
+
+'waitif' means egetty will wait for the device to come up.
+If 'waitif' is not given egetty will try to bring up the given interface.
+
 Use: "$ econsole eth0"
 
 Scanning for egettys:

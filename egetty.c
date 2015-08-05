@@ -43,6 +43,7 @@ struct {
 	int console;
 	char *device;
 	int kmsg;
+	int waitif;
 	int debug;
 	struct sockaddr_ll client;
 	int devsocket;
@@ -87,6 +88,21 @@ static int set_flag(char *ifname, short flag)
 		return -1;
 	}
 	return 0;
+}
+
+/* Check interface flag. */
+static int check_flag(char *ifname, short flag)
+{
+	struct ifreq ifr;
+
+	memset(&ifr, 0, sizeof(ifr));
+	
+	strcpy(ifr.ifr_name, ifname);
+	
+	if (ioctl(conf.devsocket, SIOCGIFFLAGS, &ifr) < 0) {
+		return -1;
+	}
+	return (ifr.ifr_flags & flag) != flag;
 }
 
 int putfd(int fd, char *s)
@@ -246,6 +262,10 @@ int main(int argc, char **argv, char **arge)
 			conf.kmsg = 1;
 			continue;
 		}
+		if(strcmp(argv[argc], "waitif")==0) {
+			conf.waitif = 1;
+			continue;
+		}
 		if( (strlen(argv[argc]) < 3) && isdigit(*argv[argc])) {
 			conf.console = atoi(argv[argc]);
 			continue;
@@ -255,9 +275,16 @@ int main(int argc, char **argv, char **arge)
 
 	conf.devsocket = devsocket();
 	
-	/* wait for interface to become available */
-	while(set_flag(conf.device, (IFF_UP | IFF_RUNNING))) {
-		sleep(1);
+	if(conf.waitif) {
+		/* wait for interface to become available */
+		while(check_flag(conf.device, (IFF_UP | IFF_RUNNING))) {
+			sleep(1);
+		}
+	} else {
+		/* active interface */
+		while(set_flag(conf.device, (IFF_UP | IFF_RUNNING))) {
+			sleep(1);
+		}
 	}
 	
 	memset(conf.client.sll_addr, 255, 6);
