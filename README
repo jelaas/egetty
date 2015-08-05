@@ -15,3 +15,7 @@ $ econsole eth0 scan
 
 Then you can connect to a specific egetty with:
 $ econsole eth0 00:0c:6b:24:d2:c8 0
+
+You may have to modify /etc/securetty
+Look at what 'login' logs.
+Add for example 'pts/1'.
